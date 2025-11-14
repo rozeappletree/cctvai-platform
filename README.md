@@ -1,2 +1,0 @@
-# cctvai-platform
-Platform Application
