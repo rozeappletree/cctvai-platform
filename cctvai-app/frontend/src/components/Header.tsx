@@ -10,7 +10,7 @@ const Header: React.FC = () => {
       <Flex align="center" justify="space-between">
         {!isAuthenticated && (
           <Heading as="h1" size="lg" color="purple.300">
-            CCTV Intelligence
+            Intelligent Surveillance Platform
           </Heading>
         )}
       </Flex>
