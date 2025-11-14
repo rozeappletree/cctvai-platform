@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
+import xml.etree.ElementTree as ET  # Import for XML parsing
 
 load_dotenv()
 
@@ -39,7 +40,12 @@ class User(BaseModel):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # --- Database (in-memory) ---
-fake_user = User(username=USERNAME, full_name="Test User", email="testuser@example.com", disabled=False)
+fake_user = User(
+    username=USERNAME,
+    full_name="Test User",
+    email="testuser@example.com",
+    disabled=False,
+)
 
 
 # --- Helper Functions ---
@@ -115,3 +121,38 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 @app.get("/dashboard/")
 async def read_dashboard(current_user: User = Depends(get_current_active_user)):
     return {"message": f"Welcome to your dashboard, {current_user.full_name}!"}
+
+
+EXPECTED_CONFIG_FILE = """<cameras><camera id="CAM-A1X" ip="10.12.34.5" rtsp="rtsp://u1:p1@10.12.34.5/"/><camera id="CAM-B7Q" ip="10.88.22.14" rtsp="rtsp://u2:p2@10.88.22.14/"/><camera id="CAM-C9M" ip="192.168.42.77" rtsp="rtsp://u3:p3@192.168.42.77/"/><camera id="CAM-D4Z" ip="172.16.8.201" rtsp="rtsp://u4:p4@172.16.8.201/"/><meta version="1.0" generated="TS-001"/></cameras>"""
+
+
+@app.post("/validate-config")
+async def validate_config(
+    config_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Validates an uploaded XML configuration file.
+    """
+    if not config_file.filename.endswith(".xml"):
+
+        return {"valid": False, "message": "Only XML files are allowed."}
+
+    try:
+        content = await config_file.read()
+        ET.fromstring(content.decode("utf-8"))
+        # Add more specific validation logic here if needed
+        data = content.decode("utf-8").strip()
+        expected = EXPECTED_CONFIG_FILE.strip()
+        if data != expected:
+            print(data, len(data))
+            print(expected, len(expected))
+            return {
+                "valid": False,
+                "message": "Invalid config file, please check your file.",
+            }
+        return {"valid": True, "message": "Configuration file is valid XML."}
+    except ET.ParseError:
+        return {"valid": False, "message": "Invalid XML format."}
+    except Exception as e:
+        return {"valid": False, "message": f"An error occurred during validation: {e}"}
